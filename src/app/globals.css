@@ -1,32 +1,78 @@
+
 :root {
-  --bg: #f6f4ef;
+  /* Fondos */
+  --bg: #f5f7fc;
   --surface: #ffffff;
-  --ink: #1b1d22;
-  --muted: #6a6f7a;
-  --line: #e4e0d6;
-  --accent: #1f3a5f;
+  --surface-alt: #edf1f8;
+
+  /* Textos */
+  --ink: #172033;
+  --muted: #69758b;
+
+  /* Bordes */
+  --line: #e1e7f0;
+
+  /* Identidad Shop Mixora */
+  --accent: #5146e5;
   --accent-ink: #ffffff;
-  --warm: #d9822b;
-  --danger: #b42318;
+
+  /* Temporada y promociones */
+  --warm: #ffb547;
+  --warm-ink: #172033;
+  --secondary: #08a99a;
+
+  /* Estados */
+  --danger: #dc3545;
+  --success: #15966b;
+
+  /* Componentes */
   --radius: 16px;
-  --shadow: 0 1px 2px rgba(20, 24, 31, 0.06), 0 8px 24px rgba(20, 24, 31, 0.06);
-  --serif: Georgia, "Iowan Old Style", "Palatino Linotype", "Times New Roman", serif;
-  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  color-scheme: light dark;
+  --shadow:
+    0 2px 6px rgba(23, 32, 51, 0.04),
+    0 10px 30px rgba(23, 32, 51, 0.08);
+
+  /* Tipografía */
+  --serif:
+    Georgia, "Iowan Old Style", "Palatino Linotype", "Times New Roman", serif;
+
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+
+  color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #121418;
-    --surface: #1b1e24;
-    --ink: #eceef2;
-    --muted: #9aa1ad;
-    --line: #2a2f38;
-    --accent: #8fb4ea;
-    --accent-ink: #0f1722;
-    --warm: #f0a350;
-    --danger: #f2877c;
-    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.35);
+    /* Fondos */
+    --bg: #101522;
+    --surface: #191f2e;
+    --surface-alt: #222b3d;
+
+    /* Textos */
+    --ink: #f4f6fc;
+    --muted: #a5b0c4;
+
+    /* Bordes */
+    --line: #303a4e;
+
+    /* Identidad */
+    --accent: #887cff;
+    --accent-ink: #ffffff;
+
+    /* Temporada y promociones */
+    --warm: #ffc46b;
+    --warm-ink: #172033;
+    --secondary: #35c9b6;
+
+    /* Estados */
+    --danger: #ff777f;
+    --success: #45c99a;
+
+    /* Componentes */
+    --shadow:
+      0 2px 6px rgba(0, 0, 0, 0.25),
+      0 10px 30px rgba(0, 0, 0, 0.3);
+
+    color-scheme: dark;
   }
 }
 
@@ -490,4 +536,47 @@ code {
   .card {
     transition: none;
   }
+}
+
+.product-image-trigger {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+  overflow: hidden;
+}
+
+.product-image-trigger img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.product-image-trigger:hover img {
+  transform: scale(1.05);
+}
+
+.image-zoom-icon {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  color: #29231f;
+  font-size: 24px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.product-image-trigger:hover .image-zoom-icon {
+  opacity: 1;
 }

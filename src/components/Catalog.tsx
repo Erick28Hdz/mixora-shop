@@ -1,7 +1,20 @@
+
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
 import type { Product } from "@/lib/types";
+
+import CatalogHeader from "./layout/CatalogHeader";
+import CatalogHero from "./layout/CatalogHero";
+import CatalogFooter from "./layout/CatalogFooter";
+
+import CatalogFilters from "./filters/CatalogFilters";
+
+import ProductGrid from "./products/ProductGrid";
+
+import CartButton from "./cart/CartButton";
+import CartDrawer from "./cart/CartDrawer";
+import FloatingCart from "./cart/FloatingCart";
 
 type Props = {
   products: Product[];
@@ -16,176 +29,276 @@ const STORAGE_KEY = "catalogo-carrito-v1";
 
 function makeFormatter(moneda: string): Intl.NumberFormat {
   try {
-    return new Intl.NumberFormat("es-CO", { style: "currency", currency: moneda, maximumFractionDigits: 0 });
+    return new Intl.NumberFormat("es-CO", {
+      style: "currency",
+      currency: moneda,
+      maximumFractionDigits: 0,
+    });
   } catch {
-    return new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 });
+    return new Intl.NumberFormat("es-CO", {
+      style: "currency",
+      currency: "COP",
+      maximumFractionDigits: 0,
+    });
   }
 }
 
 function norm(text: string): string {
   return text
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
 }
 
-function ProductImage({ src, alt }: { src: string; alt: string }) {
-  const [failed, setFailed] = useState(false);
-  if (!src || failed) {
-    return (
-      <div className="media-fallback" aria-hidden="true">
-        {alt.charAt(0).toUpperCase()}
-      </div>
-    );
-  }
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img src={src} alt={alt} loading="lazy" onError={() => setFailed(true)} />;
-}
-
-export default function Catalog({ products, source, error, negocio, whatsapp, moneda }: Props) {
+export default function Catalog({
+  products,
+  source,
+  error,
+  negocio,
+  whatsapp,
+  moneda,
+}: Props) {
+  // Estados
   const [query, setQuery] = useState("");
   const [categoria, setCategoria] = useState("Todas");
   const [soloDisp, setSoloDisp] = useState(false);
+
   const [cart, setCart] = useState<Record<string, number>>({});
   const [loaded, setLoaded] = useState(false);
+
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const fmt = useMemo(() => makeFormatter(moneda), [moneda]);
+  // Formato de moneda
+  const fmt = useMemo(
+    () => makeFormatter(moneda),
+    [moneda],
+  );
 
-  // Carrito guardado en el navegador
+  const formatPrice = (price: number) => fmt.format(price);
+
+  // Cargar carrito
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
+
       if (raw) {
         const parsed: unknown = JSON.parse(raw);
+
         if (parsed && typeof parsed === "object") {
           const clean: Record<string, number> = {};
-          for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
-            if (typeof v === "number" && v > 0) clean[k] = Math.floor(v);
+
+          for (const [key, value] of Object.entries(
+            parsed as Record<string, unknown>,
+          )) {
+            if (
+              typeof value === "number" &&
+              Number.isFinite(value) &&
+              value > 0
+            ) {
+              clean[key] = Math.floor(value);
+            }
           }
+
           setCart(clean);
         }
       }
     } catch {
-      /* sin almacenamiento disponible */
+      // Sin almacenamiento disponible
     }
+
     setLoaded(true);
   }, []);
 
+  // Guardar carrito
   useEffect(() => {
     if (!loaded) return;
+
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(cart));
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(cart),
+      );
     } catch {
-      /* ignorar */
+      // Ignorar
     }
   }, [cart, loaded]);
 
-  // Cerrar el carrito con Escape y bloquear el scroll de fondo
+  // Control del panel lateral
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+
     window.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
+
+    const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+
     return () => {
       window.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prev;
+      document.body.style.overflow = previousOverflow;
     };
   }, [open]);
 
+  // Categorías
   const categorias = useMemo(() => {
     const set = new Set<string>();
-    products.forEach((p) => p.categoria && set.add(p.categoria));
+
+    products.forEach((product) => {
+      if (product.categoria) {
+        set.add(product.categoria);
+      }
+    });
+
     return ["Todas", ...Array.from(set)];
   }, [products]);
 
+  // Filtrar productos
   const filtered = useMemo(() => {
     const q = norm(query.trim());
-    return products.filter((p) => {
-      if (categoria !== "Todas" && p.categoria !== categoria) return false;
-      if (soloDisp && !p.disponible) return false;
+
+    return products.filter((product) => {
+      if (
+        categoria !== "Todas" &&
+        product.categoria !== categoria
+      ) {
+        return false;
+      }
+
+      if (soloDisp && !product.disponible) {
+        return false;
+      }
+
       if (!q) return true;
-      return norm(`${p.nombre} ${p.descripcion} ${p.categoria}`).includes(q);
+
+      return norm(
+        `${product.nombre} ${product.descripcion} ${product.categoria}`,
+      ).includes(q);
     });
   }, [products, query, categoria, soloDisp]);
 
+  // Productos del carrito
   const items = useMemo(
     () =>
       products
-        .filter((p) => p.disponible && (cart[p.id] ?? 0) > 0)
-        .map((p) => ({ p, qty: cart[p.id] })),
+        .filter(
+          (product) =>
+            product.disponible &&
+            (cart[product.id] ?? 0) > 0,
+        )
+        .map((product) => ({
+          p: product,
+          qty: cart[product.id],
+        })),
     [products, cart],
   );
-  const count = items.reduce((s, i) => s + i.qty, 0);
-  const total = items.reduce((s, i) => s + i.qty * i.p.precio, 0);
 
-  const add = (id: string) => setCart((c) => ({ ...c, [id]: (c[id] ?? 0) + 1 }));
-  const dec = (id: string) =>
-    setCart((c) => {
-      const next = { ...c };
-      if ((next[id] ?? 0) <= 1) delete next[id];
-      else next[id] -= 1;
+  // Totales
+  const count = items.reduce(
+    (sum, item) => sum + item.qty,
+    0,
+  );
+
+  const total = items.reduce(
+    (sum, item) =>
+      sum + item.qty * item.p.precio,
+    0,
+  );
+
+  // Acciones del carrito
+  const add = (id: string) => {
+    setCart((current) => ({
+      ...current,
+      [id]: (current[id] ?? 0) + 1,
+    }));
+  };
+
+  const dec = (id: string) => {
+    setCart((current) => {
+      const next = { ...current };
+
+      if ((next[id] ?? 0) <= 1) {
+        delete next[id];
+      } else {
+        next[id] -= 1;
+      }
+
       return next;
     });
-  const remove = (id: string) =>
-    setCart((c) => {
-      const next = { ...c };
+  };
+
+  const remove = (id: string) => {
+    setCart((current) => {
+      const next = { ...current };
       delete next[id];
       return next;
     });
+  };
+
   const clear = () => setCart({});
 
+  // Preparar pedido
   const orderText = useMemo(() => {
-    const lines = items.map(({ p, qty }) => `• ${qty} x ${p.nombre} — ${fmt.format(p.precio * qty)}`);
+    const lines = items.map(
+      ({ p, qty }) =>
+        `• ${qty} x ${p.nombre} — ${fmt.format(p.precio * qty)}`,
+    );
+
     return `Hola ${negocio}, quiero hacer este pedido:\n\n${lines.join("\n")}\n\nTotal: ${fmt.format(total)}`;
   }, [items, fmt, negocio, total]);
 
+  // Enviar pedido
   const sendOrder = async () => {
     if (whatsapp) {
-      window.open(`https://wa.me/${whatsapp}?text=${encodeURIComponent(orderText)}`, "_blank", "noopener,noreferrer");
+      window.open(
+        `https://wa.me/${whatsapp}?text=${encodeURIComponent(orderText)}`,
+        "_blank",
+        "noopener,noreferrer",
+      );
+
       return;
     }
+
     try {
       await navigator.clipboard.writeText(orderText);
+
       setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
+
+      window.setTimeout(() => {
+        setCopied(false);
+      }, 2500);
     } catch {
-      /* ignorar */
+      // Ignorar
     }
   };
 
+
   return (
     <>
-      <header className="topbar">
-        <div className="wrap topbar-in">
-          <a className="brand" href="#">
-            {negocio}
-          </a>
-          <button className="cartbtn" onClick={() => setOpen(true)} aria-label={`Abrir pedido, ${count} productos`}>
-            <span>Mi pedido</span>
-            <span className="count" aria-hidden="true">
-              {count}
-            </span>
-          </button>
-        </div>
-      </header>
+      {/* Encabezado */}
+      <CatalogHeader
+        negocio={negocio}
+        count={count}
+        onOpenCart={() => setOpen(true)}
+      />
 
       <main>
-        <section className="hero wrap">
-          <p className="eyebrow">Catálogo</p>
-          <h1>Todo lo que tenemos para ti</h1>
-          <p className="lead">Elige tus productos, arma tu pedido y envíalo por WhatsApp en un par de toques.</p>
-        </section>
+        {/* Presentación */}
+        <CatalogHero />
 
+        {/* Mensajes del catálogo */}
         {source === "demo" && (
           <div className="wrap">
             <div className="banner">
-              Estás viendo productos de ejemplo. Conecta tu hoja de cálculo en <code>.env.local</code> (mira el README).
+              Estás viendo productos de ejemplo. Conecta
+              tu hoja de cálculo en .env.local (mira el README).
             </div>
           </div>
         )}
+
         {error && (
           <div className="wrap">
             <div className="banner banner-error" role="alert">
@@ -194,146 +307,63 @@ export default function Catalog({ products, source, error, negocio, whatsapp, mo
           </div>
         )}
 
-        <section className="wrap toolbar" aria-label="Filtros">
-          <input
-            className="search"
-            type="search"
-            placeholder="Buscar productos…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            aria-label="Buscar productos"
-          />
-          <div className="chips" role="group" aria-label="Categorías">
-            {categorias.map((c) => (
-              <button key={c} className={`chip${c === categoria ? " on" : ""}`} onClick={() => setCategoria(c)} aria-pressed={c === categoria}>
-                {c}
-              </button>
-            ))}
-          </div>
-          <label className="toggle">
-            <input type="checkbox" checked={soloDisp} onChange={(e) => setSoloDisp(e.target.checked)} />
-            Solo disponibles
-          </label>
-        </section>
+        {/* Filtros */}
+        <CatalogFilters
+          categorias={categorias}
+          query={query}
+          categoria={categoria}
+          soloDisp={soloDisp}
+          onQueryChange={setQuery}
+          onCategoriaChange={setCategoria}
+          onSoloDispChange={setSoloDisp}
+        />
 
+        {/* Productos */}
         <section className="wrap">
           {filtered.length === 0 ? (
-            <p className="empty">{products.length === 0 ? "Aún no hay productos para mostrar." : "No encontramos productos con esa búsqueda."}</p>
+            <p className="empty">
+              {products.length === 0
+                ? "Aún no hay productos para mostrar."
+                : "No encontramos productos con esa búsqueda."}
+            </p>
           ) : (
-            <ul className="grid">
-              {filtered.map((p) => {
-                const qty = cart[p.id] ?? 0;
-                return (
-                  <li key={p.id} className={`card${p.disponible ? "" : " soldout"}`}>
-                    <div className="media">
-                      <ProductImage src={p.imagen} alt={p.nombre} />
-                      {!p.disponible && <span className="badge badge-out">Agotado</span>}
-                      {p.disponible && p.destacado && <span className="badge badge-hot">Destacado</span>}
-                    </div>
-                    <div className="body">
-                      {p.categoria && <span className="cat">{p.categoria}</span>}
-                      <h2 className="name">{p.nombre}</h2>
-                      {p.descripcion && <p className="desc">{p.descripcion}</p>}
-                      <div className="row">
-                        <span className="price">{fmt.format(p.precio)}</span>
-                        {!p.disponible ? (
-                          <span className="na">No disponible</span>
-                        ) : qty === 0 ? (
-                          <button className="add" onClick={() => add(p.id)}>
-                            Agregar
-                          </button>
-                        ) : (
-                          <div className="stepper" role="group" aria-label={`Cantidad de ${p.nombre}`}>
-                            <button onClick={() => dec(p.id)} aria-label="Quitar uno">
-                              −
-                            </button>
-                            <span aria-live="polite">{qty}</span>
-                            <button onClick={() => add(p.id)} aria-label="Agregar uno">
-                              +
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+            <ProductGrid
+              products={filtered}
+              cart={cart}
+              formatPrice={formatPrice}
+              onAdd={add}
+              onDecrease={dec}
+            />
           )}
         </section>
       </main>
 
-      <footer className="footer wrap">
-        <p>
-          {negocio} · Los precios y la disponibilidad se actualizan automáticamente desde nuestra hoja de productos.
-        </p>
-      </footer>
+      {/* Pie de página */}
+      <CatalogFooter negocio={negocio} />
 
-      {count > 0 && !open && (
-        <button className="floatbar" onClick={() => setOpen(true)}>
-          <span>
-            Ver pedido · {count} {count === 1 ? "producto" : "productos"}
-          </span>
-          <strong>{fmt.format(total)}</strong>
-        </button>
-      )}
+      {/* Carrito flotante */}
+      <FloatingCart
+        count={open ? 0 : count}
+        total={formatPrice(total)}
+        onClick={() => setOpen(true)}
+      />
 
-      {open && (
-        <>
-          <div className="overlay" onClick={() => setOpen(false)} />
-          <aside className="drawer" role="dialog" aria-modal="true" aria-label="Mi pedido">
-            <div className="drawer-head">
-              <h2>Mi pedido</h2>
-              <button className="close" onClick={() => setOpen(false)} aria-label="Cerrar">
-                ✕
-              </button>
-            </div>
-
-            {items.length === 0 ? (
-              <p className="empty">Todavía no has agregado productos.</p>
-            ) : (
-              <>
-                <ul className="lines">
-                  {items.map(({ p, qty }) => (
-                    <li key={p.id} className="line">
-                      <div className="line-info">
-                        <strong>{p.nombre}</strong>
-                        <span>{fmt.format(p.precio)} c/u</span>
-                      </div>
-                      <div className="stepper small">
-                        <button onClick={() => dec(p.id)} aria-label={`Quitar uno de ${p.nombre}`}>
-                          −
-                        </button>
-                        <span>{qty}</span>
-                        <button onClick={() => add(p.id)} aria-label={`Agregar uno de ${p.nombre}`}>
-                          +
-                        </button>
-                      </div>
-                      <span className="line-total">{fmt.format(p.precio * qty)}</span>
-                      <button className="trash" onClick={() => remove(p.id)} aria-label={`Eliminar ${p.nombre}`}>
-                        ✕
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                <div className="drawer-foot">
-                  <div className="total">
-                    <span>Total</span>
-                    <strong>{fmt.format(total)}</strong>
-                  </div>
-                  <button className="send" onClick={sendOrder}>
-                    {whatsapp ? "Pedir por WhatsApp" : copied ? "¡Pedido copiado!" : "Copiar pedido"}
-                  </button>
-                  {!whatsapp && <p className="hint">Configura WHATSAPP_NUMERO en .env.local para enviar el pedido directo por WhatsApp.</p>}
-                  <button className="link" onClick={clear}>
-                    Vaciar pedido
-                  </button>
-                </div>
-              </>
-            )}
-          </aside>
-        </>
-      )}
+      {/* Panel lateral */}
+      <CartDrawer
+        open={open}
+        items={items}
+        total={total}
+        formatPrice={formatPrice}
+        onClose={() => setOpen(false)}
+        onAdd={add}
+        onDecrease={dec}
+        onRemove={remove}
+        onClear={clear}
+        onSendOrder={sendOrder}
+        whatsapp={whatsapp}
+        copied={copied}
+      />
     </>
   );
+
 }
